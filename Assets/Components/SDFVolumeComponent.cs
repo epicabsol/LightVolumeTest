@@ -35,6 +35,8 @@ public abstract class SDFVolumeComponent : MonoBehaviour
             pb.SetBuffer("_SphereBuffer", this.Manager.SphereBuffer);
             pb.SetInt("_CubeCount", this.Manager.Cubes.Count);
             pb.SetBuffer("_CubeBuffer", this.Manager.CubeBuffer);
+            pb.SetInt("_CylinderCount", this.Manager.Cylinders.Count);
+            pb.SetBuffer("_CylinderBuffer", this.Manager.CylinderBuffer);
 
             this.Renderer.SetPropertyBlock(pb);
         }

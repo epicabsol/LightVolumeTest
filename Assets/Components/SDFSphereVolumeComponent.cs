@@ -9,12 +9,12 @@ public class SDFSphereVolumeComponent : SDFVolumeComponent
     protected override void LateUpdate()
     {
         base.LateUpdate();
-        ((SDFSphereVolume)this.Volume).Radius = Radius;
+        ((SDFSphereVolume)this.Volume).Radius = this.Radius;
     }
 
     protected override SDFVolume RegisterVolume()
     {
-        return this.Manager.AddSphere(1.0f);
+        return this.Manager.AddSphere(this.Radius);
     }
 
     protected override void UnregisterVolume()

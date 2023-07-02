@@ -28,6 +28,7 @@ Shader "Unlit/SDFIntersectionShader"
 
             #define VOLUME_TYPE_SPHERE 1
             #define VOLUME_TYPE_CUBE 2
+            #define VOLUME_TYPE_CYLINDER 3
 
             struct SphereData
             {
@@ -41,6 +42,14 @@ Shader "Unlit/SDFIntersectionShader"
                 float4x4 InverseWorldTransform;
                 float3 HalfExtents;
                 float _Padding;
+            };
+
+            struct CylinderData
+            {
+                float4x4 InverseWorldTransform;
+                float Radius;
+                float Height;
+                float2 _Padding;
             };
 
             struct appdata
@@ -64,6 +73,9 @@ Shader "Unlit/SDFIntersectionShader"
             StructuredBuffer<CubeData> _CubeBuffer;
             int _CubeCount;
 
+            StructuredBuffer<CylinderData> _CylinderBuffer;
+            int _CylinderCount;
+
             int _CurrentVolumeType;
             int _CurrentVolumeIndex;
 
@@ -76,6 +88,10 @@ Shader "Unlit/SDFIntersectionShader"
                 float unitZ = mul(_matrix, float4(0, 0, 1, 0)).xyz;
                 return (length(unitX) + length(unitY) + length(unitZ)) / 3;
             }
+
+            //
+            // Signed Distance Functions for each primitive type
+            //
 
             inline float SignedDistanceSphere(float3 location, SphereData sphere)
             {
@@ -92,6 +108,18 @@ Shader "Unlit/SDFIntersectionShader"
                 float3 q = abs(localLocation) - cube.HalfExtents;
                 return (length(max(q, float3(0.0f, 0.0f, 0.0f))) + min(max(q.x, max(q.y, q.z)), 0.0f)) / EstimateScale(cube.InverseWorldTransform);
             }
+
+            inline float SignedDistanceCylinder(float3 location, CylinderData cylinder)
+            {
+                float3 localLocation = mul(cylinder.InverseWorldTransform, float4(location, 1.0f)).xyz;
+
+                float2 d = abs(float2(length(localLocation.xz), localLocation.y)) - float2(cylinder.Radius, cylinder.Height / 2.0f);
+                return (min(max(d.x, d.y), 0.0f) + length(max(d, float2(0.0f, 0.0f)))) / EstimateScale(cylinder.InverseWorldTransform);
+            }
+
+            //
+            // Outline functions for different intersection appearances
+            //
 
             // Draws a dim outline at the given intersection distance, and a bright line even closer to the intersection
             inline float OutlineSteppedCenter(float minDistance)
@@ -114,6 +142,8 @@ Shader "Unlit/SDFIntersectionShader"
                 #define RING_THICKNESS 0.025
                 return (fmod(minDistance, _IntersectionDistance) < RING_THICKNESS / 2 || fmod(minDistance, _IntersectionDistance) > 1.0f - RING_THICKNESS / 2) ? 1 : 0;
             }
+
+
 
             // Transforms location from world to object space
             // One would think this would make sense to have this function ship with Unity, but....
@@ -150,6 +180,15 @@ Shader "Unlit/SDFIntersectionShader"
                 {
                     float distance = SignedDistanceCube(i.world, _CubeBuffer[k]);
                     if (distance < minDistance && !(k == _CurrentVolumeIndex && _CurrentVolumeType == VOLUME_TYPE_CUBE))
+                    {
+                        minDistance = distance;
+                    }
+                }
+
+                for (int m = 0; m < _CylinderCount; m++)
+                {
+                    float distance = SignedDistanceCylinder(i.world, _CylinderBuffer[m]);
+                    if (distance < minDistance && !(m == _CurrentVolumeIndex && _CurrentVolumeType == VOLUME_TYPE_CYLINDER))
                     {
                         minDistance = distance;
                     }

@@ -9,7 +9,7 @@ public class SDFCubeVolumeComponent : SDFVolumeComponent
     protected override void LateUpdate()
     {
         base.LateUpdate();
-        ((SDFCubeVolume)this.Volume).HalfExtents = HalfExtents;
+        ((SDFCubeVolume)this.Volume).HalfExtents = this.HalfExtents;
     }
 
     protected override SDFVolume RegisterVolume()
