@@ -6,108 +6,82 @@ public class SDFVolumeManagerComponent : MonoBehaviour
 {
     private const int MaxShapeCount = 30; // Max number of each shape
 
-    #region Sphere
-
-    private struct SphereData // 80 bytes
+    internal struct VolumeData
     {
         public Matrix4x4 InverseWorldTransform; // 64 bytes
-        public float Radius;
-        private Vector3 _Padding; // TODO: Needed?
+
+        // This holds up to three shape-specific values
+        public Vector3 ShapeParameters; // 12 bytes
+
+        public SDFVolumeType VolumeType; // 4 bytes
+
+        public VolumeData(Matrix4x4 inverseWorldTransform, SDFVolumeType volumeType, float shapeParameter0 = 0.0f, float shapeParameter1 = 0.0f, float shapeParameter2 = 0.0f)
+        {
+            this.InverseWorldTransform = inverseWorldTransform;
+            this.VolumeType = volumeType;
+            this.ShapeParameters = new Vector3(shapeParameter0, shapeParameter1, shapeParameter2);
+        }
     }
-    private List<SDFSphereVolume> _spheres = new List<SDFSphereVolume>();
-    public IReadOnlyList<SDFSphereVolume> Spheres => this._spheres;
-    public ComputeBuffer SphereBuffer { get; private set; }
+    private List<SDFVolume> _volumes = new List<SDFVolume>();
+    public IReadOnlyList<SDFVolume> Volumes => this._volumes;
+    public ComputeBuffer VolumeBuffer { get; private set; }
 
     public SDFSphereVolume AddSphere(float radius)
     {
-        var newSphere = new SDFSphereVolume(this.Spheres.Count, radius);
-        this._spheres.Add(newSphere);
+        if (this.Volumes.Count >= SDFVolumeManagerComponent.MaxShapeCount)
+            throw new System.Exception($"Cannot exceed maximum volume count of {SDFVolumeManagerComponent.MaxShapeCount} ({nameof(SDFVolumeManagerComponent)}.{nameof(MaxShapeCount)})");
+
+        var newSphere = new SDFSphereVolume(this.Volumes.Count, radius);
+        this._volumes.Add(newSphere);
         return newSphere;
     }
 
-    public void RemoveSphere(SDFSphereVolume sphere)
-    {
-        this.RemoveVolume(this._spheres, sphere);
-    }
-
-    #endregion
-
-    #region Cube
-
-    private struct CubeData // 80 bytes
-    {
-        public Matrix4x4 InverseWorldTransform; // 64 bytes
-        public Vector3 HalfExtents; // 12 bytes
-        private float _Padding; // 4 bytes
-    }
-    private List<SDFCubeVolume> _cubes = new List<SDFCubeVolume>();
-    public IReadOnlyList<SDFCubeVolume> Cubes => this._cubes;
-    public ComputeBuffer CubeBuffer { get; private set; }
-
     public SDFCubeVolume AddCube(Vector3 halfExtents)
     {
-        var newCube = new SDFCubeVolume(this.Cubes.Count, halfExtents);
-        this._cubes.Add(newCube);
+        if (this.Volumes.Count >= SDFVolumeManagerComponent.MaxShapeCount)
+            throw new System.Exception($"Cannot exceed maximum volume count of {SDFVolumeManagerComponent.MaxShapeCount} ({nameof(SDFVolumeManagerComponent)}.{nameof(MaxShapeCount)})");
+
+        var newCube = new SDFCubeVolume(this.Volumes.Count, halfExtents);
+        this._volumes.Add(newCube);
         return newCube;
     }
 
-    public void RemoveCube(SDFCubeVolume cube)
-    {
-        this.RemoveVolume(this._cubes, cube);
-    }
-
-    #endregion
-
-    #region Cylinder
-
-    private struct CylinderData // 80 bytes
-    {
-        public Matrix4x4 InverseWorldTransform; // 64 bytes
-        public float Radius; // 4 bytes
-        public float Height; // 4 bytes;
-        public Vector2 _Padding; // 8 bytes
-    }
-    private List<SDFCylinderVolume> _cylinders = new List<SDFCylinderVolume>();
-    public IReadOnlyList<SDFCylinderVolume> Cylinders => this._cylinders;
-    public ComputeBuffer CylinderBuffer { get; private set; }
-
     public SDFCylinderVolume AddCylinder(float radius, float height)
     {
-        var newCylinder = new SDFCylinderVolume(this.Cylinders.Count, radius, height);
-        this._cylinders.Add(newCylinder);
+        if (this.Volumes.Count >= SDFVolumeManagerComponent.MaxShapeCount)
+            throw new System.Exception($"Cannot exceed maximum volume count of {SDFVolumeManagerComponent.MaxShapeCount} ({nameof(SDFVolumeManagerComponent)}.{nameof(MaxShapeCount)})");
+
+        var newCylinder = new SDFCylinderVolume(this.Volumes.Count, radius, height);
+        this._volumes.Add(newCylinder);
         return newCylinder;
     }
 
-    public void RemoveCylinder(SDFCylinderVolume cylinder)
+    public void RemoveVolume(SDFVolume volume)
     {
-        this.RemoveVolume(this._cylinders, cylinder);
-    }
+        int index = this._volumes.IndexOf(volume);
 
-    #endregion
-
-    private void RemoveVolume<TVolume>(List<TVolume> list, TVolume volume) where TVolume : SDFVolume
-    {
-        int index = list.IndexOf(volume);
-        if (index != -1)
+        if (index == -1)
         {
-            // TODO: We could swap the last volume into the removed slot to avoid having to shift everything.
-            // Shifting a Relatively Small (tm) number of object references isn't slow but if we wanted to push
-            // the limits it could make incremental changes to the corresponding GPU buffer easier, rather than having
-            // to repopulate the GPU buffer each frame
-            list.RemoveAt(index);
-
-            for (int i = index; i < list.Count; i++)
-            {
-                list[i].VolumeIndex = i;
-            }
+            return;
         }
+
+        // If `volume` is not the last volume in the list, swap the last volume in the list into the slot being removed
+        if (this.Volumes.Count > 1 && index < this.Volumes.Count - 1)
+        {
+            this._volumes[index] = this._volumes[this._volumes.Count - 1];
+            this._volumes[index].VolumeIndex = index;
+        }
+
+        // Now we know that `volume` has to be at the end of `Volumes`
+        this._volumes.RemoveAt(this._volumes.Count - 1);
+
+        // Give the removed volume some nonsense value so that use-after-remove errors become more obvious
+        volume.VolumeIndex = -1;
     }
 
     private void OnEnable()
     {
-        this.SphereBuffer = new ComputeBuffer(MaxShapeCount, /*sizeof(SphereData)*/ 80, ComputeBufferType.Structured);
-        this.CubeBuffer = new ComputeBuffer(MaxShapeCount, /* sizeof(CubeData) */ 80, ComputeBufferType.Structured);
-        this.CylinderBuffer = new ComputeBuffer(MaxShapeCount, /* sizeof(CylinderData) */ 80, ComputeBufferType.Structured);
+        this.VolumeBuffer = new ComputeBuffer(MaxShapeCount, /*sizeof(VolumeData)*/ 80, ComputeBufferType.Structured);
 
         Camera.onPreRender += OnCameraPreRender;
     }
@@ -116,33 +90,18 @@ public class SDFVolumeManagerComponent : MonoBehaviour
     {
         Camera.onPreRender -= OnCameraPreRender;
 
-        this.SphereBuffer.Dispose();
-        this.CubeBuffer.Dispose();
-        this.CylinderBuffer.Dispose();
+        this.VolumeBuffer.Dispose();
     }
 
-    // Rather than reallocating these each time, just keep these around from one OnCameraPreRender to the next
-    private SphereData[] SphereDataBuffer = new SphereData[MaxShapeCount];
-    private CubeData[] CubeDataBuffer = new CubeData[MaxShapeCount];
-    private CylinderData[] CylinderDataBuffer = new CylinderData[MaxShapeCount];
+    // Rather than reallocating this each time, just keep it around from one OnCameraPreRender to the next
+    // (which makes this non-threadsafe, but you weren't going to call OnCameraPreRender from multiple threads, were you?!)
+    private VolumeData[] VolumeDataBuffer = new VolumeData[MaxShapeCount];
     private void OnCameraPreRender(Camera camera)
     {
-        for (int i = 0; i < this.Spheres.Count; i++)
+        for (int i = 0; i < this.Volumes.Count; i++)
         {
-            this.SphereDataBuffer[i] = new SphereData() { InverseWorldTransform = this.Spheres[i].InverseWorldTransform, Radius = this.Spheres[i].Radius };
+            this.VolumeDataBuffer[i] = this.Volumes[i].MakeVolumeData();
         }
-        this.SphereBuffer.SetData(this.SphereDataBuffer);
-
-        for (int i = 0; i < this.Cubes.Count; i++)
-        {
-            this.CubeDataBuffer[i] = new CubeData() { InverseWorldTransform = this.Cubes[i].InverseWorldTransform, HalfExtents = this.Cubes[i].HalfExtents };
-        }
-        this.CubeBuffer.SetData(this.CubeDataBuffer);
-
-        for (int i = 0; i < this.Cylinders.Count; i++)
-        {
-            this.CylinderDataBuffer[i] = new CylinderData() { InverseWorldTransform = this.Cylinders[i].InverseWorldTransform, Radius = this.Cylinders[i].Radius, Height = this.Cylinders[i].Height };
-        }
-        this.CylinderBuffer.SetData(this.CylinderDataBuffer);
+        this.VolumeBuffer.SetData(this.VolumeDataBuffer);
     }
 }

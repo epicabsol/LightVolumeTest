@@ -26,30 +26,16 @@ Shader "Unlit/SDFIntersectionShader"
 
             #include "UnityCG.cginc"
 
+            // NOTE: Must match enum SDFVolumeType in SDFVolume.cs
             #define VOLUME_TYPE_SPHERE 1
             #define VOLUME_TYPE_CUBE 2
             #define VOLUME_TYPE_CYLINDER 3
 
-            struct SphereData
+            struct VolumeData
             {
                 float4x4 InverseWorldTransform;
-                float Radius;
-                float3 _Padding;
-            };
-
-            struct CubeData
-            {
-                float4x4 InverseWorldTransform;
-                float3 HalfExtents;
-                float _Padding;
-            };
-
-            struct CylinderData
-            {
-                float4x4 InverseWorldTransform;
-                float Radius;
-                float Height;
-                float2 _Padding;
+                float3 ShapeParameters;
+                int VolumeType;
             };
 
             struct appdata
@@ -67,16 +53,9 @@ Shader "Unlit/SDFIntersectionShader"
             fixed4 _IntersectionColor;
             float _IntersectionDistance;
 
-            StructuredBuffer<SphereData> _SphereBuffer;
-            int _SphereCount;
+            StructuredBuffer<VolumeData> _VolumeBuffer;
+            int _VolumeCount;
 
-            StructuredBuffer<CubeData> _CubeBuffer;
-            int _CubeCount;
-
-            StructuredBuffer<CylinderData> _CylinderBuffer;
-            int _CylinderCount;
-
-            int _CurrentVolumeType;
             int _CurrentVolumeIndex;
 
             inline float EstimateScale(float4x4 _matrix)
@@ -93,28 +72,49 @@ Shader "Unlit/SDFIntersectionShader"
             // Signed Distance Functions for each primitive type
             //
 
-            inline float SignedDistanceSphere(float3 location, SphereData sphere)
+            inline float SignedDistanceSphere(float3 location, float4x4 inverseWorldTransform, float radius)
             {
-                float3 localLocation = mul(sphere.InverseWorldTransform, float4(location, 1.0f)).xyz;
+                float3 localLocation = mul(inverseWorldTransform, float4(location, 1.0f)).xyz;
 
-                return (length(localLocation) - sphere.Radius) / EstimateScale(sphere.InverseWorldTransform);
+                return (length(localLocation) - radius) / EstimateScale(inverseWorldTransform);
             }
 
-            inline float SignedDistanceCube(float3 location, CubeData cube)
+            inline float SignedDistanceCube(float3 location, float4x4 inverseWorldTransform, float3 halfExtents)
             {
-                float3 localLocation = mul(cube.InverseWorldTransform, float4(location, 1.0f)).xyz;
+                float3 localLocation = mul(inverseWorldTransform, float4(location, 1.0f)).xyz;
 
                 // Based on https://iquilezles.org/articles/distfunctions/
-                float3 q = abs(localLocation) - cube.HalfExtents;
-                return (length(max(q, float3(0.0f, 0.0f, 0.0f))) + min(max(q.x, max(q.y, q.z)), 0.0f)) / EstimateScale(cube.InverseWorldTransform);
+                float3 q = abs(localLocation) - halfExtents;
+                return (length(max(q, float3(0.0f, 0.0f, 0.0f))) + min(max(q.x, max(q.y, q.z)), 0.0f)) / EstimateScale(inverseWorldTransform);
             }
 
-            inline float SignedDistanceCylinder(float3 location, CylinderData cylinder)
+            inline float SignedDistanceCylinder(float3 location, float4x4 inverseWorldTransform, float radius, float height)
             {
-                float3 localLocation = mul(cylinder.InverseWorldTransform, float4(location, 1.0f)).xyz;
+                float3 localLocation = mul(inverseWorldTransform, float4(location, 1.0f)).xyz;
 
-                float2 d = abs(float2(length(localLocation.xz), localLocation.y)) - float2(cylinder.Radius, cylinder.Height / 2.0f);
-                return (min(max(d.x, d.y), 0.0f) + length(max(d, float2(0.0f, 0.0f)))) / EstimateScale(cylinder.InverseWorldTransform);
+                // Based on https://iquilezles.org/articles/distfunctions/
+                float2 d = abs(float2(length(localLocation.xz), localLocation.y)) - float2(radius, height / 2.0f);
+                return (min(max(d.x, d.y), 0.0f) + length(max(d, float2(0.0f, 0.0f)))) / EstimateScale(inverseWorldTransform);
+            }
+
+            inline float SignedDistance(float3 location, VolumeData volume)
+            {
+                if (volume.VolumeType == VOLUME_TYPE_SPHERE)
+                {
+                    return SignedDistanceSphere(location, volume.InverseWorldTransform, volume.ShapeParameters.x);
+                }
+                else if (volume.VolumeType == VOLUME_TYPE_CUBE)
+                {
+                    return SignedDistanceCube(location, volume.InverseWorldTransform, volume.ShapeParameters.xyz);
+                }
+                else if (volume.VolumeType == VOLUME_TYPE_CYLINDER)
+                {
+                    return SignedDistanceCylinder(location, volume.InverseWorldTransform, volume.ShapeParameters.x, volume.ShapeParameters.y);
+                }
+                else
+                {
+                    return 100000.0f;
+                }
             }
 
             //
@@ -146,7 +146,7 @@ Shader "Unlit/SDFIntersectionShader"
 
 
             // Transforms location from world to object space
-            // One would think this would make sense to have this function ship with Unity, but....
+            // One would think it would make sense to have this function ship with Unity, but....
             inline float3 UnityObjectToWorldLocation(in float3 location)
             {
                 return mul(unity_ObjectToWorld, float4(location, 1.0f)).xyz;
@@ -164,31 +164,11 @@ Shader "Unlit/SDFIntersectionShader"
             {
                 // Find closest distance to something
                 float minDistance = 100000.0f;
-
-
-                for (int j = 0; j < _SphereCount; j++)
+                for (int j = 0; j < _VolumeCount; j++)
                 {
                     // Take the absolute value of these signed distance outputs to enable interior intersections
-                    float distance = SignedDistanceSphere(i.world, _SphereBuffer[j]);
-                    if (distance < minDistance && !(j == _CurrentVolumeIndex && _CurrentVolumeType == VOLUME_TYPE_SPHERE))
-                    {
-                        minDistance = distance;
-                    }
-                }
-
-                for (int k = 0; k < _CubeCount; k++)
-                {
-                    float distance = SignedDistanceCube(i.world, _CubeBuffer[k]);
-                    if (distance < minDistance && !(k == _CurrentVolumeIndex && _CurrentVolumeType == VOLUME_TYPE_CUBE))
-                    {
-                        minDistance = distance;
-                    }
-                }
-
-                for (int m = 0; m < _CylinderCount; m++)
-                {
-                    float distance = SignedDistanceCylinder(i.world, _CylinderBuffer[m]);
-                    if (distance < minDistance && !(m == _CurrentVolumeIndex && _CurrentVolumeType == VOLUME_TYPE_CYLINDER))
+                    float distance = SignedDistance(i.world, _VolumeBuffer[j]);
+                    if (distance < minDistance && j != _CurrentVolumeIndex)
                     {
                         minDistance = distance;
                     }

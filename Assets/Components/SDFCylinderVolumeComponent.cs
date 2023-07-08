@@ -14,13 +14,8 @@ public class SDFCylinderVolumeComponent : SDFVolumeComponent
         ((SDFCylinderVolume)this.Volume).Height = this.Height;
     }
 
-    protected override SDFVolume RegisterVolume()
+    protected override SDFVolume CreateVolume()
     {
         return this.Manager.AddCylinder(this.Radius, this.Height);
-    }
-
-    protected override void UnregisterVolume()
-    {
-        this.Manager.RemoveCylinder((SDFCylinderVolume)this.Volume);
     }
 }

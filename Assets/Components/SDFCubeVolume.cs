@@ -15,4 +15,9 @@ public class SDFCubeVolume : SDFVolume
     {
         this.HalfExtents = halfExtents;
     }
+
+    internal override SDFVolumeManagerComponent.VolumeData MakeVolumeData()
+    {
+        return new SDFVolumeManagerComponent.VolumeData(this.InverseWorldTransform, this.VolumeType, this.HalfExtents.x, this.HalfExtents.y, this.HalfExtents.z);
+    }
 }

@@ -12,13 +12,8 @@ public class SDFCubeVolumeComponent : SDFVolumeComponent
         ((SDFCubeVolume)this.Volume).HalfExtents = this.HalfExtents;
     }
 
-    protected override SDFVolume RegisterVolume()
+    protected override SDFVolume CreateVolume()
     {
         return this.Manager.AddCube(this.HalfExtents);
-    }
-
-    protected override void UnregisterVolume()
-    {
-        this.Manager.RemoveCube((SDFCubeVolume)this.Volume);
     }
 }

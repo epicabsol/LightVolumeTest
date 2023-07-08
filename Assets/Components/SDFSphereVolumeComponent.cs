@@ -12,13 +12,8 @@ public class SDFSphereVolumeComponent : SDFVolumeComponent
         ((SDFSphereVolume)this.Volume).Radius = this.Radius;
     }
 
-    protected override SDFVolume RegisterVolume()
+    protected override SDFVolume CreateVolume()
     {
         return this.Manager.AddSphere(this.Radius);
-    }
-
-    protected override void UnregisterVolume()
-    {
-        this.Manager.RemoveSphere((SDFSphereVolume)this.Volume);
     }
 }

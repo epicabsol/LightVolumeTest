@@ -26,17 +26,16 @@ public abstract class SDFVolumeComponent : MonoBehaviour
         {
             MaterialPropertyBlock pb = new MaterialPropertyBlock();
 
+            // Catch use-after-remove errors
+            if (this.Volume.VolumeIndex < 0)
+                throw new System.Exception("Cannot render a volume that has been removed from the volume manager!");
+
             // Update the current volume info
-            pb.SetInt("_CurrentVolumeType", (int)this.Volume.VolumeType);
             pb.SetInt("_CurrentVolumeIndex", this.Volume.VolumeIndex);
 
             // Update the other volume info
-            pb.SetInt("_SphereCount", this.Manager.Spheres.Count);
-            pb.SetBuffer("_SphereBuffer", this.Manager.SphereBuffer);
-            pb.SetInt("_CubeCount", this.Manager.Cubes.Count);
-            pb.SetBuffer("_CubeBuffer", this.Manager.CubeBuffer);
-            pb.SetInt("_CylinderCount", this.Manager.Cylinders.Count);
-            pb.SetBuffer("_CylinderBuffer", this.Manager.CylinderBuffer);
+            pb.SetBuffer("_VolumeBuffer", this.Manager.VolumeBuffer);
+            pb.SetInt("_VolumeCount", this.Manager.Volumes.Count);
 
             this.Renderer.SetPropertyBlock(pb);
         }
@@ -47,7 +46,7 @@ public abstract class SDFVolumeComponent : MonoBehaviour
         this.Manager = this.GetComponentInParent<SDFVolumeManagerComponent>();
         if (this.Manager != null)
         {
-            this.Volume = this.RegisterVolume();
+            this.Volume = this.CreateVolume();
         }
         else
         {
@@ -59,11 +58,10 @@ public abstract class SDFVolumeComponent : MonoBehaviour
     {
         if (this.Volume != null)
         {
-            this.UnregisterVolume();
+            this.Manager.RemoveVolume(this.Volume);
             this.Volume = null;
         }
     }
 
-    protected abstract SDFVolume RegisterVolume();
-    protected abstract void UnregisterVolume();
+    protected abstract SDFVolume CreateVolume();
 }

@@ -12,4 +12,9 @@ public class SDFSphereVolume : SDFVolume
     {
         this.Radius = radius;
     }
+
+    internal override SDFVolumeManagerComponent.VolumeData MakeVolumeData()
+    {
+        return new SDFVolumeManagerComponent.VolumeData(this.InverseWorldTransform, this.VolumeType, this.Radius);
+    }
 }

@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+// NOTE: Must match the VOLUME_TYPE_ definitions in SDFIntersectionShader.shader
 public enum SDFVolumeType : int
 {
     Invalid = 0,
@@ -23,7 +24,10 @@ public abstract class SDFVolume
     /// <summary>
     /// The index of this volume relative to the other volume of the same type.
     /// </summary>
-    public int VolumeIndex { get; set; }
+    /// <remarks>
+    /// This should only be set by <see cref="SDFVolumeManagerComponent"/>
+    /// </remarks>
+    public int VolumeIndex { get; internal set; }
 
     // TODO: Adding bounds and ContainsPoint checks would make lots of sense if using these for gameplay systems on the CPU
     //public abstract Bounds LocalBounds { get; }
@@ -33,4 +37,6 @@ public abstract class SDFVolume
     {
         this.VolumeIndex = volumeIndex;
     }
+
+    internal abstract SDFVolumeManagerComponent.VolumeData MakeVolumeData();
 }

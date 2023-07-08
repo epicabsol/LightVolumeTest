@@ -14,4 +14,9 @@ public class SDFCylinderVolume : SDFVolume
         this.Radius = radius;
         this.Height = height;
     }
+
+    internal override SDFVolumeManagerComponent.VolumeData MakeVolumeData()
+    {
+        return new SDFVolumeManagerComponent.VolumeData(this.InverseWorldTransform, this.VolumeType, this.Radius, this.Height);
+    }
 }
