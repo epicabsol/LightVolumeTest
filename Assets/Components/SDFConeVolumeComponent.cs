@@ -7,9 +7,8 @@ public class SDFConeVolumeComponent : SDFVolumeComponent
     public float Radius = 1.0f;
     public float Height = 2.0f;
 
-    protected override void LateUpdate()
+    protected override void UpdateVolume()
     {
-        base.LateUpdate();
         ((SDFConeVolume)this.Volume).Radius = Radius;
         ((SDFConeVolume)this.Volume).Height = Height;
     }

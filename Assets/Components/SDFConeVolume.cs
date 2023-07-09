@@ -17,6 +17,6 @@ public class SDFConeVolume : SDFVolume
 
     internal override SDFVolumeManagerComponent.VolumeData MakeVolumeData()
     {
-        return new SDFVolumeManagerComponent.VolumeData(this.InverseWorldTransform, this.VolumeType, this.Radius, this.Height);
+        return new SDFVolumeManagerComponent.VolumeData(this.InverseWorldTransform, this.Color, this.VolumeType, this.Radius, this.Height);
     }
 }

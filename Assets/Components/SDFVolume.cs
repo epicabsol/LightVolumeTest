@@ -19,6 +19,10 @@ public abstract class SDFVolume
     /// </summary>
     public Matrix4x4 InverseWorldTransform { get; set; }
     /// <summary>
+    /// The color that this volume should be.
+    /// </summary>
+    public Vector4 Color { get; set; }
+    /// <summary>
     /// Which type of volume this is.
     /// </summary>
     public abstract SDFVolumeType VolumeType { get; }

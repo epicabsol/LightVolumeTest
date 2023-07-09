@@ -2,8 +2,6 @@ Shader "Unlit/SDFIntersectionShader"
 {
     Properties
     {
-        _BaseColor ("Base Color", Color) = (0.0, 1.0, 0.0, 0.3)
-        _IntersectionColor ("Intersection Color", Color) = (0.0, 1.0, 0.0, 0.6)
         _IntersectionDistance ("Intersection Distance", Float) = 1.0
     }
     SubShader
@@ -36,6 +34,7 @@ Shader "Unlit/SDFIntersectionShader"
             struct VolumeData
             {
                 float4x4 InverseWorldTransform;
+                float4 Color;
                 float3 ShapeParameters;
                 int VolumeType;
             };
@@ -53,8 +52,7 @@ Shader "Unlit/SDFIntersectionShader"
             };
 
             sampler2D_float _CameraDepthTexture;
-            fixed4 _BaseColor;
-            fixed4 _IntersectionColor;
+            fixed4 _EditModeColor;
             float _IntersectionDistance;
 
             StructuredBuffer<VolumeData> _VolumeBuffer;
@@ -217,9 +215,12 @@ Shader "Unlit/SDFIntersectionShader"
                 bool isCameraInside = cameraDistance < 0.0f;
 
                 // If the camera is inside, double the amount of base color to compensate for only having one of the two sides visible
+                float4 baseColor = _CurrentVolumeIndex < _VolumeCount ? _VolumeBuffer[_CurrentVolumeIndex].Color : _EditModeColor;
+                float4 myOutlineColor = baseColor;
+                float4 otherOutlineColor = myOutlineColor; // This will change based on what other object the outline is against
                 if (isCameraInside)
                 {
-                    _BaseColor.xyz = _BaseColor.xyz * 2.0f;
+                    baseColor.xyz = baseColor.xyz * 2.0f;
                 }
 
                 // Find closest distance to something
@@ -236,16 +237,27 @@ Shader "Unlit/SDFIntersectionShader"
                     if (distance < minDistance && j != _CurrentVolumeIndex)
                     {
                         minDistance = distance;
+                        otherOutlineColor = _VolumeBuffer[j].Color;
                     }
                 }
 
                 // Check the distance to the solid surface behind
-                minDistance = min(minDistance, abs(sceneZ - i.projPos.z));
+                float surfaceDistance = abs(sceneZ - i.projPos.z);
+                if (surfaceDistance < minDistance)
+                {
+                    minDistance = surfaceDistance;
+                    otherOutlineColor = myOutlineColor;
+                }
 
                 // If this is a part of the volume that has been faked to appear on top of a solid surface, draw an edge to the volume
                 if (isAdjustedSurface)
                 {
-                    minDistance = min(minDistance, 0.5f * abs(SignedDistance(i.world, _VolumeBuffer[_CurrentVolumeIndex])));
+                    float actualOwnVolumeDistance = 0.5f * abs(SignedDistance(i.world, _VolumeBuffer[_CurrentVolumeIndex]));
+                    if (actualOwnVolumeDistance < minDistance)
+                    {
+                        minDistance = actualOwnVolumeDistance;
+                        otherOutlineColor = myOutlineColor;
+                    }
                 }
 
                 // Determine whether to show the base color or the intersection color, based on the nearest distance to something
@@ -254,7 +266,7 @@ Shader "Unlit/SDFIntersectionShader"
                 //float value = OutlineSteppedCenter(minDistance);
                 //float value = OutlineConcentric(minDistance);
 
-                return lerp(_BaseColor, _IntersectionColor, value);
+                return lerp(baseColor, (myOutlineColor + otherOutlineColor) * 0.5f * 2.0f, value);
             }
             ENDCG
         }

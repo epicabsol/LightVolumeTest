@@ -2,27 +2,46 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[ExecuteInEditMode]
 public abstract class SDFVolumeComponent : MonoBehaviour
 {
     public SDFVolume Volume { get; private set; } = null;
     public SDFVolumeManagerComponent Manager { get; private set; }
     public Renderer Renderer { get; private set; }
 
+    public Color Color = new Color(1.0f, 0.0f, 0.0f, 0.1f);
+
     // Start is called before the first frame update
     void Start()
     {
-        this.Manager = this.GetComponentInParent<SDFVolumeManagerComponent>();
-        this.Renderer = this.GetComponent<Renderer>();
+        if (Application.IsPlaying(gameObject))
+        {
+            this.Manager = this.GetComponentInParent<SDFVolumeManagerComponent>();
+            this.Renderer = this.GetComponent<Renderer>();
+        }
     }
 
     protected virtual void LateUpdate()
     {
-        this.Volume.InverseWorldTransform = this.transform.worldToLocalMatrix;
+        if (Application.IsPlaying(gameObject))
+        {
+            this.Volume.InverseWorldTransform = this.transform.worldToLocalMatrix;
+            this.Volume.Color = this.Color;
+
+            this.UpdateVolume();
+        }
     }
 
     private void OnWillRenderObject()
     {
-        if (this.Renderer != null && this.Manager != null && this.Volume != null)
+        if (!Application.IsPlaying(gameObject))
+        {
+            // During edit mode the shader will not have the volume infos, including our color, so pass it here
+            MaterialPropertyBlock pb = new MaterialPropertyBlock();
+            pb.SetColor("_EditModeColor", this.Color);
+            this.GetComponent<Renderer>()?.SetPropertyBlock(pb);
+        }
+        else if (this.Renderer != null && this.Manager != null && this.Volume != null)
         {
             MaterialPropertyBlock pb = new MaterialPropertyBlock();
 
@@ -43,14 +62,17 @@ public abstract class SDFVolumeComponent : MonoBehaviour
 
     private void OnEnable()
     {
-        this.Manager = this.GetComponentInParent<SDFVolumeManagerComponent>();
-        if (this.Manager != null)
+        if (Application.IsPlaying(gameObject))
         {
-            this.Volume = this.CreateVolume();
-        }
-        else
-        {
-            Debug.LogError("No manager for SDF volume component!");
+            this.Manager = this.GetComponentInParent<SDFVolumeManagerComponent>();
+            if (this.Manager != null)
+            {
+                this.Volume = this.CreateVolume();
+            }
+            else
+            {
+                Debug.LogError("No manager for SDF volume component!");
+            }
         }
     }
 
@@ -64,4 +86,5 @@ public abstract class SDFVolumeComponent : MonoBehaviour
     }
 
     protected abstract SDFVolume CreateVolume();
+    protected abstract void UpdateVolume();
 }

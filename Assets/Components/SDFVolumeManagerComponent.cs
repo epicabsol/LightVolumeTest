@@ -10,18 +10,22 @@ public class SDFVolumeManagerComponent : MonoBehaviour
     {
         public Matrix4x4 InverseWorldTransform; // 64 bytes
 
+        public Vector4 Color; // 16 bytes
+
         // This holds up to three shape-specific values
         public Vector3 ShapeParameters; // 12 bytes
 
         public SDFVolumeType VolumeType; // 4 bytes
 
-        public VolumeData(Matrix4x4 inverseWorldTransform, SDFVolumeType volumeType, float shapeParameter0 = 0.0f, float shapeParameter1 = 0.0f, float shapeParameter2 = 0.0f)
+        public VolumeData(Matrix4x4 inverseWorldTransform, Vector4 color, SDFVolumeType volumeType, float shapeParameter0 = 0.0f, float shapeParameter1 = 0.0f, float shapeParameter2 = 0.0f)
         {
             this.InverseWorldTransform = inverseWorldTransform;
+            this.Color = color;
             this.VolumeType = volumeType;
             this.ShapeParameters = new Vector3(shapeParameter0, shapeParameter1, shapeParameter2);
         }
     }
+
     private List<SDFVolume> _volumes = new List<SDFVolume>();
     public IReadOnlyList<SDFVolume> Volumes => this._volumes;
     public ComputeBuffer VolumeBuffer { get; private set; }
@@ -91,7 +95,7 @@ public class SDFVolumeManagerComponent : MonoBehaviour
 
     private void OnEnable()
     {
-        this.VolumeBuffer = new ComputeBuffer(MaxShapeCount, /*sizeof(VolumeData)*/ 80, ComputeBufferType.Structured);
+        this.VolumeBuffer = new ComputeBuffer(MaxShapeCount, /*sizeof(VolumeData)*/ 96, ComputeBufferType.Structured);
 
         Camera.onPreRender += OnCameraPreRender;
     }

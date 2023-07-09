@@ -6,9 +6,8 @@ public class SDFCubeVolumeComponent : SDFVolumeComponent
 {
     public Vector3 HalfExtents = new Vector3(0.5f, 0.5f, 0.5f);
 
-    protected override void LateUpdate()
+    protected override void UpdateVolume()
     {
-        base.LateUpdate();
         ((SDFCubeVolume)this.Volume).HalfExtents = this.HalfExtents;
     }
 

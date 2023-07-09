@@ -18,6 +18,6 @@ public class SDFCubeVolume : SDFVolume
 
     internal override SDFVolumeManagerComponent.VolumeData MakeVolumeData()
     {
-        return new SDFVolumeManagerComponent.VolumeData(this.InverseWorldTransform, this.VolumeType, this.HalfExtents.x, this.HalfExtents.y, this.HalfExtents.z);
+        return new SDFVolumeManagerComponent.VolumeData(this.InverseWorldTransform, this.Color, this.VolumeType, this.HalfExtents.x, this.HalfExtents.y, this.HalfExtents.z);
     }
 }

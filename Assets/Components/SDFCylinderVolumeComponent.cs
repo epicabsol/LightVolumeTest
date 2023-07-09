@@ -7,9 +7,8 @@ public class SDFCylinderVolumeComponent : SDFVolumeComponent
     public float Radius = 0.5f;
     public float Height = 2.0f;
 
-    protected override void LateUpdate()
+    protected override void UpdateVolume()
     {
-        base.LateUpdate();
         ((SDFCylinderVolume)this.Volume).Radius = this.Radius;
         ((SDFCylinderVolume)this.Volume).Height = this.Height;
     }
