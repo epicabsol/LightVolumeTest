@@ -9,6 +9,7 @@ public enum SDFVolumeType : int
     Sphere = 1,
     Cube = 2,
     Cylinder = 3,
+    Cone = 4,
 }
 
 public abstract class SDFVolume

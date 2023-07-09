@@ -30,6 +30,7 @@ Shader "Unlit/SDFIntersectionShader"
             #define VOLUME_TYPE_SPHERE 1
             #define VOLUME_TYPE_CUBE 2
             #define VOLUME_TYPE_CYLINDER 3
+            #define VOLUME_TYPE_CONE 4
 
             struct VolumeData
             {
@@ -97,6 +98,22 @@ Shader "Unlit/SDFIntersectionShader"
                 return (min(max(d.x, d.y), 0.0f) + length(max(d, float2(0.0f, 0.0f)))) / EstimateScale(inverseWorldTransform);
             }
 
+            inline float SignedDistanceCone(float3 location, float4x4 inverseWorldTransform, float radius, float height)
+            {
+                float3 localLocation = mul(inverseWorldTransform, float4(location, 1.0f)).xyz;
+
+                // Based on https://iquilezles.org/articles/distfunctions/
+                float2 q = float2(radius, -height);
+
+                float2 w = float2(length(localLocation.xz), localLocation.y);
+                float2 a = w - q * saturate(dot(w, q) / dot(q, q));
+                float2 b = w - q * float2(saturate(w.x / q.x), 1.0f);
+                float k = sign(q.y); // Cope with negative heights
+                float d = min(dot(a, a), dot(b, b));
+                float s = max(k * (w.x * q.y - w.y * q.x), k * (w.y - q.y));
+                return (sqrt(d) * sign(s)) / EstimateScale(inverseWorldTransform);
+            }
+
             inline float SignedDistance(float3 location, VolumeData volume)
             {
                 if (volume.VolumeType == VOLUME_TYPE_SPHERE)
@@ -110,6 +127,10 @@ Shader "Unlit/SDFIntersectionShader"
                 else if (volume.VolumeType == VOLUME_TYPE_CYLINDER)
                 {
                     return SignedDistanceCylinder(location, volume.InverseWorldTransform, volume.ShapeParameters.x, volume.ShapeParameters.y);
+                }
+                else if (volume.VolumeType == VOLUME_TYPE_CONE)
+                {
+                    return SignedDistanceCone(location, volume.InverseWorldTransform, volume.ShapeParameters.x, volume.ShapeParameters.y);
                 }
                 else
                 {

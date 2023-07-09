@@ -56,6 +56,16 @@ public class SDFVolumeManagerComponent : MonoBehaviour
         return newCylinder;
     }
 
+    public SDFConeVolume AddCone(float radius, float height)
+    {
+        if (this.Volumes.Count >= SDFVolumeManagerComponent.MaxShapeCount)
+            throw new System.Exception($"Cannot exceed maximum volume count of {SDFVolumeManagerComponent.MaxShapeCount} ({nameof(SDFVolumeManagerComponent)}.{nameof(MaxShapeCount)})");
+
+        var newCone = new SDFConeVolume(this.Volumes.Count, radius, height);
+        this._volumes.Add(newCone);
+        return newCone;
+    }
+
     public void RemoveVolume(SDFVolume volume)
     {
         int index = this._volumes.IndexOf(volume);
