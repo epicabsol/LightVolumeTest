@@ -16,6 +16,7 @@ Shader "Unlit/SDFIntersectionShader"
         Blend SrcAlpha One // Add to the existing screen color, but take our output alpha into account
         Cull Off // We want to be able to see the far side of the volume
         ZWrite Off // We want to be able to render farther volumes after this one has drawn
+        ZTest Always
         LOD 100
 
         Pass
@@ -48,8 +49,10 @@ Shader "Unlit/SDFIntersectionShader"
             {
                 float4 vertex : SV_POSITION;
                 float3 world : TEXCOORD0;
+                float4 projPos : TEXCOORD4;
             };
 
+            sampler2D_float _CameraDepthTexture;
             fixed4 _BaseColor;
             fixed4 _IntersectionColor;
             float _IntersectionDistance;
@@ -154,7 +157,7 @@ Shader "Unlit/SDFIntersectionShader"
             // Draws a single line at the intersection with the given intersection distance
             inline float OutlineCenter(float minDistance)
             {
-                return abs(minDistance) < _IntersectionDistance ? 1 : 0;
+                return abs(minDistance) < _IntersectionDistance * 0.2f ? 1 : 0;
             }
 
             // Draws gridlines spaced apart according to the given intersection distance
@@ -178,27 +181,77 @@ Shader "Unlit/SDFIntersectionShader"
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.world = UnityObjectToWorldLocation(v.vertex);
+                o.projPos = ComputeScreenPos(o.vertex);
+				COMPUTE_EYEDEPTH(o.projPos.z);
                 return o;
             }
 
             fixed4 frag (v2f i) : SV_Target
             {
+                // We need to implement depth testing a bit specially - if we are 'behind' a solid surface, check whether the solid surface point is inside our volume.
+                // This way, we can show both front and backfaces, even when the volume is clipping into a solid surface
+                // Determine how far away the last solid object behind the current volume surface is
+                float sceneZ = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE_PROJ(_CameraDepthTexture, UNITY_PROJ_COORD(i.projPos)));
+
+                float3 toVolume = -UnityWorldSpaceViewDir(i.world);
+                float3 toSurface = toVolume * sceneZ / i.projPos.z; // I *think* this is correct??
+                float3 surfaceWorld = _WorldSpaceCameraPos.xyz + toSurface;
+
+                // If the pixel we are shading is behind the surface, check whether the surface is within the volume
+                bool isAdjustedSurface = sceneZ <= i.projPos.z;
+                if (isAdjustedSurface)
+                {
+                    // If the pixel we are shading isn't within the volume, don't draw it
+                    float ownVolumeDistance = SignedDistance(surfaceWorld, _VolumeBuffer[_CurrentVolumeIndex]);
+                    if (ownVolumeDistance > 0.0f)
+                    {
+                        discard;
+                    }
+
+                    // Otherwise, pretend it is on the surface that is in front of it
+                    i.world = surfaceWorld;
+                }
+
+                // Check whether the camera is inside the volume being drawn
+                float cameraDistance = SignedDistance(_WorldSpaceCameraPos, _VolumeBuffer[_CurrentVolumeIndex]);
+                bool isCameraInside = cameraDistance < 0.0f;
+
+                // If the camera is inside, double the amount of base color to compensate for only having one of the two sides visible
+                if (isCameraInside)
+                {
+                    _BaseColor.xyz = _BaseColor.xyz * 2.0f;
+                }
+
                 // Find closest distance to something
                 float minDistance = 100000.0f;
+
+                // Check the distance to each volume
                 for (int j = 0; j < _VolumeCount; j++)
                 {
-                    // Take the absolute value of these signed distance outputs to enable interior intersections
                     float distance = SignedDistance(i.world, _VolumeBuffer[j]);
+                    
+                    // Take the absolute value of these signed distance outputs to enable interior intersections
+                    //distance = abs(distance);
+
                     if (distance < minDistance && j != _CurrentVolumeIndex)
                     {
                         minDistance = distance;
                     }
                 }
 
+                // Check the distance to the solid surface behind
+                minDistance = min(minDistance, abs(sceneZ - i.projPos.z));
+
+                // If this is a part of the volume that has been faked to appear on top of a solid surface, draw an edge to the volume
+                if (isAdjustedSurface)
+                {
+                    minDistance = min(minDistance, 0.5f * abs(SignedDistance(i.world, _VolumeBuffer[_CurrentVolumeIndex])));
+                }
+
                 // Determine whether to show the base color or the intersection color, based on the nearest distance to something
                 // I added a couple different designs to try out:
-                //float value = OutlineCenter(minDistance);
-                float value = OutlineSteppedCenter(minDistance);
+                float value = OutlineCenter(minDistance);
+                //float value = OutlineSteppedCenter(minDistance);
                 //float value = OutlineConcentric(minDistance);
 
                 return lerp(_BaseColor, _IntersectionColor, value);
