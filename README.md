@@ -6,24 +6,21 @@ This is a Unity project demonstrating how to draw additive light volumes with ou
 ![Screenshot](Screenshot.png)
 
 
-Summary
+Notes
 -------
 
-Because lights are naturally additive, we don't have any sorting concerns. However, all of the light volumes need to go through each of the following steps together:
- - First, each light volume renders itself using normal Unity `MeshFilter` + `MeshRenderer` components, with border lines based on the depth buffer from the opaque objects (in `Materials/OpaqueIntersection/OpaqueIntersectionShader.shader`)
- - Then, each light volume renders a depth map of itself for the current camera (in `Materials/VolumeIntersection/VolumeDepthShader.shader`)
- - Finally, each light volume loops through every other light volume and draws a copy of its mesh using `VolumeIntersectionShader.shader`, which is very similar to the opaque shader except that it samples the depth texture of the other volume to produce additional border lines.
+ - The light volumes are additive, so no sorting or depth challenges
+ - Each volume is a primitive with an analytical signed distance field representation used by other volumes to draw intersection boundaries
+ - The scene depth buffer is used to approximate intersection boundaries with other solid geometry
+ - Backface culling is disabled, and the shader compensates for the viewpoint being inside a volume by rendering its far side twice as brightly
+ - Depth testing is disabled, and the parts of the volume mesh that are behind solid geometry are either draw on top of the geometry or discarded
+ - If the light volumes are going to be mostly static, one might save a tiny bit of perf by adjusting `SDFVolumeManagerComponent` to only update its GPU volume buffer when changes have occurred, rather than every frame
 
 
-Components
-----------
+Usage
+-----
 
-**Components/LightVolumeManagerComponent.cs**: This is the container for the light volumes. It handles driving the extra rendering of the volumes.  
-**Components/LightVolumeComponent.cs**: Add one of these to a `GameObject` that has a model with a single `OpaqueIntersectionShader` material to register it with the manager, render its depth texture, and draw the additional volume-on-volume border lines.
+1. Create a GameObject and add an `SDFVolumeManagerComponent`.
+2. Add instances of the volume prefabs in `Prefabs/` as children of the manager you created, and transform them however you please.
+3. Alternatively, you can create volumes without their respective GameObjects from script by using the `SDFVolumeManagerComponent.Add...(...)` methods.
 
-
-Future Improvement Opportunities
---------------------------------
-
- - Have each `LightVolumeComponent` render an additional depth texture for its backfaces as well as the current one for its front-facing faces, to allow the far side of volumes to cause border lines to appear on other volumes (should be very straightforward to implement, not sure about perf impact)
- - Draw border lines using many depth samples (like SSAO) rather than one, to give a nicer border appearance (perf concerns again though)
